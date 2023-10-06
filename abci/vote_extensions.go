@@ -32,8 +32,8 @@ func NewVoteExtHandler(
 	}
 }
 
-// OracleVoteExtension defines the canonical vote extension structure.
-type OracleVoteExtension struct {
+// WeightedVotingPowerVoteExtension defines the canonical vote extension structure.
+type WeightedVotingPowerVoteExtension struct {
 	Height  int64
 	Weights map[string]int64
 }
@@ -47,7 +47,13 @@ func (h *VoteExtHandler) ExtendVoteHandler() sdk.ExtendVoteHandler {
 
 		//TODO: Add external sources here
 
+		// TODO: if the new compute height is reached compute, otherwise use the already existing weights
 		computedWeights, err := h.Keeper.GetWeights(ctx)
+		if err != nil || len(computedWeights) <= 0 {
+			computedWeights["val1"] = 0
+			computedWeights["val2"] = 1
+		}
+
 		if err != nil {
 			// NOTE: The Cosmos SDK will ensure any error returned is captured and
 			// logged. We can return nil here to indicate we do not want to produce
@@ -57,7 +63,7 @@ func (h *VoteExtHandler) ExtendVoteHandler() sdk.ExtendVoteHandler {
 		}
 
 		// produce a canonical vote extension
-		voteExt := OracleVoteExtension{
+		voteExt := WeightedVotingPowerVoteExtension{
 			Height:  req.Height,
 			Weights: computedWeights,
 		}
@@ -70,6 +76,7 @@ func (h *VoteExtHandler) ExtendVoteHandler() sdk.ExtendVoteHandler {
 		if err != nil {
 			return nil, fmt.Errorf("failed to marshal vote extension: %w", err)
 		}
+		h.logger.Info(fmt.Sprintf("%s", bz))
 
 		return &abci.ResponseExtendVote{VoteExtension: bz}, nil
 	}
@@ -77,7 +84,7 @@ func (h *VoteExtHandler) ExtendVoteHandler() sdk.ExtendVoteHandler {
 
 func (h *VoteExtHandler) VerifyVoteExtensionHandler() sdk.VerifyVoteExtensionHandler {
 	return func(ctx sdk.Context, req *abci.RequestVerifyVoteExtension) (*abci.ResponseVerifyVoteExtension, error) {
-		var voteExt OracleVoteExtension
+		var voteExt WeightedVotingPowerVoteExtension
 
 		err := json.Unmarshal(req.VoteExtension, &voteExt)
 		if err != nil {
@@ -90,9 +97,7 @@ func (h *VoteExtHandler) VerifyVoteExtensionHandler() sdk.VerifyVoteExtensionHan
 			return nil, fmt.Errorf("vote extension height does not match request height; expected: %d, got: %d", req.Height, voteExt.Height)
 		}
 
-		// Verify incoming prices from a validator are valid. Note, verification during
-		// VerifyVoteExtensionHandler MUST be deterministic. For brevity and demo
-		// purposes, we omit implementation.
+		// verify if they are valid
 		if err := h.verifyWeights(ctx, voteExt.Weights); err != nil {
 			return nil, fmt.Errorf("failed to verify oracle prices from validator %X: %w", req.ValidatorAddress, err)
 		}

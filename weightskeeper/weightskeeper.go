@@ -59,6 +59,16 @@ func (k WeightsKeeper) GetWeights(ctx context.Context) (map[string]int64, error)
 	return weights, nil
 }
 
+func (k WeightsKeeper) SetWeights(ctx context.Context, weights map[string]int64) error {
+	for b, q := range weights {
+		err := k.Weights.Set(ctx, b, q)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (k WeightsKeeper) GetValidatorsUptime(ctx context.Context) {
 
 }

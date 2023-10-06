@@ -245,12 +245,17 @@ func NewApp(
 		runtime.NewKVStoreService(keys[weight_shift.StoreKey]),
 	)
 
+	// set the VoteExtender handler
 	voteExtHandler := abci2.NewVoteExtHandler(logger, app.WeightsKeeper)
-	//prepareProposalHandler := abci2.NewPrepareProposalHandler(logger, app.WeightsKeeper, nil)
-	//processPropHandler := abci2.New{app.txConfig, appCodec, logger}
-	//bApp.SetPrepareProposal(prepareProposalHandler.PrepareProposal())
-	//bApp.SetProcessProposal(processPropHandler.ProcessProposalHandler())
 	bApp.SetExtendVoteHandler(voteExtHandler.ExtendVoteHandler())
+
+	// set the PrepareProposal handler
+	prepareProposalHandler := abci2.NewPrepareProposalHandler(logger, app.WeightsKeeper, nil)
+	bApp.SetPrepareProposal(prepareProposalHandler.PrepareProposal())
+
+	// set the ProcessProposal handler
+	//processPropHandler := abci2.New{app.txConfig, appCodec, logger}
+	//bApp.SetProcessProposal(processPropHandler.ProcessProposalHandler())
 
 	app.ParamsKeeper = initParamsKeeper(appCodec, legacyAmino, keys[paramstypes.StoreKey], tkeys[paramstypes.TStoreKey])
 
