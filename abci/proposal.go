@@ -2,7 +2,6 @@ package abci
 
 import (
 	"cosmossdk.io/log"
-	"cosmossdk.io/math"
 	"encoding/json"
 	"errors"
 	"github.com/ciprianmuja/weight-shift/weightskeeper"
@@ -20,11 +19,11 @@ type WeightedVotingPower struct {
 
 type ProposalHandler struct {
 	logger   log.Logger
-	keeper   weightskeeper.Keeper
+	keeper   weightskeeper.WeightsKeeper
 	valStore baseapp.ValidatorStore
 }
 
-func NewProposalHandler(logger log.Logger, keeper weightskeeper.Keeper, valStore baseapp.ValidatorStore) *ProposalHandler {
+func NewPrepareProposalHandler(logger log.Logger, keeper weightskeeper.WeightsKeeper, valStore baseapp.ValidatorStore) *ProposalHandler {
 	return &ProposalHandler{
 		logger:   logger,
 		keeper:   keeper,
@@ -125,8 +124,4 @@ func (h *ProposalHandler) PreBlocker(ctx sdk.Context, req *abci.RequestFinalizeB
 	}*/
 
 	return res, nil
-}
-
-func compareOraclePrices(p1, p2 map[string]math.LegacyDec) error {
-	return nil
 }

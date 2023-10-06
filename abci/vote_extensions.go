@@ -15,7 +15,6 @@ type VoteExtHandler struct {
 	logger          log.Logger
 	currentBlock    int64               // current block height
 	lastPriceSyncTS time.Time           // last time we synced prices
-	providerTimeout time.Duration       // timeout for fetching prices from providers
 	provider        map[string]Provider // provider from which get the external weight data
 
 	Keeper weightskeeper.WeightsKeeper
@@ -23,13 +22,11 @@ type VoteExtHandler struct {
 
 func NewVoteExtHandler(
 	logger log.Logger,
-	providerTimeout time.Duration,
 	//providers map[string]Provider,
 	keeper weightskeeper.WeightsKeeper,
 ) *VoteExtHandler {
 	return &VoteExtHandler{
-		logger:          logger,
-		providerTimeout: providerTimeout,
+		logger: logger,
 		//providers:       providers,
 		Keeper: keeper,
 	}

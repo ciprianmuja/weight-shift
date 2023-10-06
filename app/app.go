@@ -8,9 +8,8 @@ import (
 	"encoding/json"
 	"fmt"
 	weight_shift "github.com/ciprianmuja/weight-shift"
-	mempool2 "github.com/ciprianmuja/weight-shift/mempool"
+	abci2 "github.com/ciprianmuja/weight-shift/abci"
 	"github.com/ciprianmuja/weight-shift/provider"
-	apptypes "github.com/ciprianmuja/weight-shift/types"
 	"github.com/ciprianmuja/weight-shift/weightskeeper"
 	"github.com/cosmos/cosmos-sdk/client/flags"
 	"github.com/spf13/cast"
@@ -153,7 +152,7 @@ func NewApp(
 ) *App {
 	homePath := cast.ToString(appOpts.Get(flags.FlagHome))
 	// Set demo flag
-	runProvider := cast.ToBool(appOpts.Get(apptypes.FlagRunProvider))
+	//runProvider := cast.ToBool(appOpts.Get(apptypes.FlagRunProvider))
 
 	interfaceRegistry, _ := types.NewInterfaceRegistryWithOptions(types.InterfaceRegistryOptions{
 		ProtoFiles: proto.HybridResolver,
@@ -172,17 +171,6 @@ func NewApp(
 
 	std.RegisterLegacyAminoCodec(legacyAmino)
 	std.RegisterInterfaces(interfaceRegistry)
-
-	/*
-		*************************
-		Configure Appside mempool
-		*************************
-	*/
-
-	mempool := mempool2.NewThresholdMempool(logger)
-	baseAppOptions = append(baseAppOptions, func(app *baseapp.BaseApp) {
-		app.SetMempool(mempool)
-	})
 
 	bApp := baseapp.NewBaseApp(AppName, logger, db, txConfig.TxDecoder(), baseAppOptions...)
 	bApp.SetCommitMultiStoreTracer(traceStore)
@@ -250,13 +238,19 @@ func NewApp(
 	if err := bp.Init(); err != nil {
 		panic(err)
 	}
-	//TODO: add here the weightskeeper?
-	/*voteExtHandler := abci2.NewProposalHandler(logger)
-	prepareProposalHandler := abci2.NewPrepareProposalHandler(logger, app.txConfig, appCodec, mempool, bp, runProvider)
-	processPropHandler := abci2.ProcessProposalHandler{app.txConfig, appCodec, logger}
-	bApp.SetPrepareProposal(prepareProposalHandler.PrepareProposalHandler())
-	bApp.SetProcessProposal(processPropHandler.ProcessProposalHandler())
-	bApp.SetExtendVoteHandler(voteExtHandler.ExtendVoteHandler())*/
+
+	app.WeightsKeeper = weightskeeper.NewWeightsKeeper(
+		appCodec,
+		authcodec.NewBech32Codec(sdk.Bech32MainPrefix),
+		runtime.NewKVStoreService(keys[weight_shift.StoreKey]),
+	)
+
+	voteExtHandler := abci2.NewVoteExtHandler(logger, app.WeightsKeeper)
+	//prepareProposalHandler := abci2.NewPrepareProposalHandler(logger, app.WeightsKeeper, nil)
+	//processPropHandler := abci2.New{app.txConfig, appCodec, logger}
+	//bApp.SetPrepareProposal(prepareProposalHandler.PrepareProposal())
+	//bApp.SetProcessProposal(processPropHandler.ProcessProposalHandler())
+	bApp.SetExtendVoteHandler(voteExtHandler.ExtendVoteHandler())
 
 	app.ParamsKeeper = initParamsKeeper(appCodec, legacyAmino, keys[paramstypes.StoreKey], tkeys[paramstypes.TStoreKey])
 
@@ -275,12 +269,6 @@ func NewApp(
 		authcodec.NewBech32Codec(sdk.Bech32MainPrefix),
 		sdk.Bech32MainPrefix,
 		authtypes.NewModuleAddress(govtypes.ModuleName).String(),
-	)
-
-	app.WeightsKeeper = weightskeeper.NewWeightsKeeper(
-		appCodec,
-		authcodec.NewBech32Codec(sdk.Bech32MainPrefix),
-		runtime.NewKVStoreService(keys[weight_shift.StoreKey]),
 	)
 
 	app.BankKeeper = bankkeeper.NewBaseKeeper(
