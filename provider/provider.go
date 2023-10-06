@@ -55,10 +55,10 @@ func (bp *LocalTxProvider) Init() error {
 }
 
 func (ls *LocalSigner) Init(txCfg client.TxConfig, cdc codec.Codec, logger log.Logger) error {
-
-	if len(ls.KeyName) == 0 {
-		return fmt.Errorf("keyName  must be set")
-	}
+	/*
+		if len(ls.KeyName) == 0 {
+			return fmt.Errorf("keyName  must be set")
+		}*/
 
 	if len(ls.KeyringDir) == 0 {
 		return fmt.Errorf("keyDir  must be set")
