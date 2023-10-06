@@ -1,21 +1,18 @@
 package abci
 
 import (
+	"cosmossdk.io/log"
 	"encoding/json"
 	"fmt"
-	"time"
-
-	"cosmossdk.io/log"
 	"github.com/ciprianmuja/weight-shift/weightskeeper"
 	abci "github.com/cometbft/cometbft/abci/types"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 )
 
 type VoteExtHandler struct {
-	logger          log.Logger
-	currentBlock    int64               // current block height
-	lastPriceSyncTS time.Time           // last time we synced prices
-	provider        map[string]Provider // provider from which get the external weight data
+	logger       log.Logger
+	currentBlock int64               // current block height
+	provider     map[string]Provider // provider from which get the external weight data
 
 	Keeper weightskeeper.WeightsKeeper
 }
@@ -40,10 +37,10 @@ type WeightedVotingPowerVoteExtension struct {
 
 func (h *VoteExtHandler) ExtendVoteHandler() sdk.ExtendVoteHandler {
 	return func(ctx sdk.Context, req *abci.RequestExtendVote) (*abci.ResponseExtendVote, error) {
+		h.logger.Info(fmt.Sprintf("🗳️ :: Extending Vote"))
 		h.currentBlock = req.Height
-		h.lastPriceSyncTS = time.Now()
 
-		h.logger.Info("computing weighted voting power", "height", req.Height, "time", h.lastPriceSyncTS)
+		h.logger.Info("computing weighted voting power", "height", req.Height)
 
 		//TODO: Add external sources here
 
@@ -54,14 +51,6 @@ func (h *VoteExtHandler) ExtendVoteHandler() sdk.ExtendVoteHandler {
 			computedWeights["val2"] = 1
 		}
 
-		if err != nil {
-			// NOTE: The Cosmos SDK will ensure any error returned is captured and
-			// logged. We can return nil here to indicate we do not want to produce
-			// a vote extension, and thus an empty vote extension will be provided
-			// automatically to CometBFT.
-			return nil, err
-		}
-
 		// produce a canonical vote extension
 		voteExt := WeightedVotingPowerVoteExtension{
 			Height:  req.Height,
@@ -70,13 +59,15 @@ func (h *VoteExtHandler) ExtendVoteHandler() sdk.ExtendVoteHandler {
 
 		h.logger.Info("computed weights", "weights", computedWeights)
 
-		// NOTE: We use stdlib JSON encoding, but an application may choose to use
-		// a performant mechanism. This is for demo purposes only.
 		bz, err := json.Marshal(voteExt)
 		if err != nil {
+			h.logger.Error(err.Error())
 			return nil, fmt.Errorf("failed to marshal vote extension: %w", err)
 		}
-		h.logger.Info(fmt.Sprintf("%s", bz))
+
+		h.logger.Info("ciao")
+		h.logger.Info(fmt.Sprint(voteExt))
+		h.logger.Info(string(bz))
 
 		return &abci.ResponseExtendVote{VoteExtension: bz}, nil
 	}
@@ -84,6 +75,7 @@ func (h *VoteExtHandler) ExtendVoteHandler() sdk.ExtendVoteHandler {
 
 func (h *VoteExtHandler) VerifyVoteExtensionHandler() sdk.VerifyVoteExtensionHandler {
 	return func(ctx sdk.Context, req *abci.RequestVerifyVoteExtension) (*abci.ResponseVerifyVoteExtension, error) {
+		h.logger.Info(fmt.Sprintf("🗳️ :: Verifying Extended Votes"))
 		var voteExt WeightedVotingPowerVoteExtension
 
 		err := json.Unmarshal(req.VoteExtension, &voteExt)
