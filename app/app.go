@@ -7,10 +7,12 @@ import (
 	upgradetypes "cosmossdk.io/x/upgrade/types"
 	"encoding/json"
 	"fmt"
+	weight_shift "github.com/ciprianmuja/weight-shift"
+	mempool2 "github.com/ciprianmuja/weight-shift/mempool"
+	"github.com/ciprianmuja/weight-shift/provider"
+	apptypes "github.com/ciprianmuja/weight-shift/types"
+	"github.com/ciprianmuja/weight-shift/weightskeeper"
 	"github.com/cosmos/cosmos-sdk/client/flags"
-	abci2 "github.com/fatal-fruit/cosmapp/abci"
-	mempool2 "github.com/fatal-fruit/cosmapp/mempool"
-	"github.com/fatal-fruit/cosmapp/provider"
 	"github.com/spf13/cast"
 	"io"
 	"os"
@@ -76,7 +78,6 @@ import (
 	govtypes "github.com/cosmos/cosmos-sdk/x/gov/types"
 	paramskeeper "github.com/cosmos/cosmos-sdk/x/params/keeper"
 	stakingkeeper "github.com/cosmos/cosmos-sdk/x/staking/keeper"
-	apptypes "github.com/fatal-fruit/cosmapp/types"
 	nskeeper "github.com/fatal-fruit/ns/keeper"
 	nameservice "github.com/fatal-fruit/ns/module"
 	nstypes "github.com/fatal-fruit/ns/types"
@@ -121,6 +122,7 @@ type App struct {
 	ParamsKeeper          paramskeeper.Keeper
 	ConsensusParamsKeeper consensusparamkeeper.Keeper
 	NameserviceKeeper     nskeeper.Keeper
+	WeightsKeeper         weightskeeper.WeightsKeeper
 
 	mm           *module.Manager
 	BasicManager module.BasicManager
@@ -197,6 +199,7 @@ func NewApp(
 		upgradetypes.StoreKey,
 		consensusparamtypes.StoreKey,
 		nstypes.StoreKey,
+		weight_shift.StoreKey,
 	)
 
 	// register streaming services
@@ -247,12 +250,13 @@ func NewApp(
 	if err := bp.Init(); err != nil {
 		panic(err)
 	}
-	voteExtHandler := abci2.NewVoteExtensionHandler(logger, mempool, appCodec)
+	//TODO: add here the weightskeeper?
+	/*voteExtHandler := abci2.NewProposalHandler(logger)
 	prepareProposalHandler := abci2.NewPrepareProposalHandler(logger, app.txConfig, appCodec, mempool, bp, runProvider)
 	processPropHandler := abci2.ProcessProposalHandler{app.txConfig, appCodec, logger}
 	bApp.SetPrepareProposal(prepareProposalHandler.PrepareProposalHandler())
 	bApp.SetProcessProposal(processPropHandler.ProcessProposalHandler())
-	bApp.SetExtendVoteHandler(voteExtHandler.ExtendVoteHandler())
+	bApp.SetExtendVoteHandler(voteExtHandler.ExtendVoteHandler())*/
 
 	app.ParamsKeeper = initParamsKeeper(appCodec, legacyAmino, keys[paramstypes.StoreKey], tkeys[paramstypes.TStoreKey])
 
@@ -271,6 +275,12 @@ func NewApp(
 		authcodec.NewBech32Codec(sdk.Bech32MainPrefix),
 		sdk.Bech32MainPrefix,
 		authtypes.NewModuleAddress(govtypes.ModuleName).String(),
+	)
+
+	app.WeightsKeeper = weightskeeper.NewWeightsKeeper(
+		appCodec,
+		authcodec.NewBech32Codec(sdk.Bech32MainPrefix),
+		runtime.NewKVStoreService(keys[weight_shift.StoreKey]),
 	)
 
 	app.BankKeeper = bankkeeper.NewBaseKeeper(
@@ -631,7 +641,7 @@ func (ao EmptyAppOptions) Get(_ string) interface{} {
 	return nil
 }
 
-// initParamsKeeper init params keeper and its subspaces
+// initParamsKeeper init params weightskeeper and its subspaces
 func initParamsKeeper(appCodec codec.BinaryCodec, legacyAmino *codec.LegacyAmino, key, tkey storetypes.StoreKey) paramskeeper.Keeper {
 	paramsKeeper := paramskeeper.NewKeeper(appCodec, legacyAmino, key, tkey)
 

@@ -2,8 +2,8 @@ package cmd
 
 import (
 	"errors"
-	"github.com/fatal-fruit/cosmapp/testutils"
-	"github.com/fatal-fruit/cosmapp/types"
+	"github.com/ciprianmuja/weight-shift/testutils"
+	"github.com/ciprianmuja/weight-shift/types"
 	"io"
 	"os"
 
@@ -11,6 +11,7 @@ import (
 
 	"cosmossdk.io/log"
 	confixcmd "cosmossdk.io/tools/confix/cmd"
+	"github.com/ciprianmuja/weight-shift/app"
 	tmcfg "github.com/cometbft/cometbft/config"
 	dbm "github.com/cosmos/cosmos-db"
 	"github.com/cosmos/cosmos-sdk/client"
@@ -27,7 +28,6 @@ import (
 	authcmd "github.com/cosmos/cosmos-sdk/x/auth/client/cli"
 	"github.com/cosmos/cosmos-sdk/x/crisis"
 	genutilcli "github.com/cosmos/cosmos-sdk/x/genutil/client/cli"
-	"github.com/fatal-fruit/cosmapp/app"
 	"github.com/spf13/cast"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"

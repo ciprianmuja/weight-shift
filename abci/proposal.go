@@ -1,234 +1,132 @@
 package abci
 
 import (
-	"context"
 	"cosmossdk.io/log"
-	"encoding/base64"
+	"cosmossdk.io/math"
 	"encoding/json"
-	"fmt"
+	"errors"
+	"github.com/ciprianmuja/weight-shift/weightskeeper"
 	abci "github.com/cometbft/cometbft/abci/types"
-	"github.com/cosmos/cosmos-sdk/client"
-	"github.com/cosmos/cosmos-sdk/codec"
+	"github.com/cosmos/cosmos-sdk/baseapp"
 	sdk "github.com/cosmos/cosmos-sdk/types"
-	"github.com/fatal-fruit/cosmapp/mempool"
-	"github.com/fatal-fruit/cosmapp/provider"
-	nstypes "github.com/fatal-fruit/ns/types"
 )
 
-func NewPrepareProposalHandler(
-	lg log.Logger,
-	txCg client.TxConfig,
-	cdc codec.Codec,
-	mp *mempool.ThresholdMempool,
-	pv provider.TxProvider,
-	runProv bool,
-) *PrepareProposalHandler {
-	return &PrepareProposalHandler{
-		logger:      lg,
-		txConfig:    txCg,
-		cdc:         cdc,
-		mempool:     mp,
-		txProvider:  pv,
-		runProvider: runProv,
+// WeightedVotingPower defines the structure a proposer should use to calculate
+// and submit the weighted voting power for the given validator set
+type WeightedVotingPower struct {
+	StakeWeightedPrices map[string]int64
+	ExtendedCommitInfo  abci.ExtendedCommitInfo
+}
+
+type ProposalHandler struct {
+	logger   log.Logger
+	keeper   weightskeeper.Keeper
+	valStore baseapp.ValidatorStore
+}
+
+func NewProposalHandler(logger log.Logger, keeper weightskeeper.Keeper, valStore baseapp.ValidatorStore) *ProposalHandler {
+	return &ProposalHandler{
+		logger:   logger,
+		keeper:   keeper,
+		valStore: valStore,
 	}
 }
 
-func (h *PrepareProposalHandler) PrepareProposalHandler() sdk.PrepareProposalHandler {
+func (h *ProposalHandler) PrepareProposal() sdk.PrepareProposalHandler {
 	return func(ctx sdk.Context, req *abci.RequestPrepareProposal) (*abci.ResponsePrepareProposal, error) {
-		h.logger.Info(fmt.Sprintf("🛠️ :: Prepare Proposal"))
-		var proposalTxs [][]byte
 
-		// Get Vote Extensions
-		if req.Height > 2 {
+		err := baseapp.ValidateVoteExtensions(ctx, h.valStore, req.Height, ctx.ChainID(), req.LocalLastCommit)
+		if err != nil {
+			return nil, err
+		}
 
-			// Get Special Transaction
-			ve, err := processVoteExtensions(req, h.logger)
+		proposalTxs := req.Txs
+
+		if req.Height >= ctx.ConsensusParams().Abci.VoteExtensionsEnableHeight {
+
+			stakeWeightedPrices, err := h.keeper.GetWeights(ctx)
 			if err != nil {
-				h.logger.Error(fmt.Sprintf("❌️ :: Unable to process Vote Extensions: %v", err))
+				return nil, errors.New("failed to compute stake-weighted oracle prices")
 			}
 
-			// Marshal Special Transaction
-			bz, err := json.Marshal(ve)
-			if err != nil {
-				h.logger.Error(fmt.Sprintf("❌️ :: Unable to marshal Vote Extensions: %v", err))
+			injectedVoteExtTx := WeightedVotingPower{
+				StakeWeightedPrices: stakeWeightedPrices,
+				ExtendedCommitInfo:  req.LocalLastCommit,
 			}
 
-			// Append Special Transaction to proposal
+			// NOTE: We use stdlib JSON encoding, but an application may choose to use
+			// a performant mechanism. This is for demo purposes only.
+			bz, err := json.Marshal(injectedVoteExtTx)
+			if err != nil {
+				h.logger.Error("failed to encode injected vote extension tx", "err", err)
+				return nil, errors.New("failed to encode injected vote extension tx")
+			}
+
+			// Inject a "fake" tx into the proposal s.t. validators can decode, verify,
+			// and store the canonical stake-weighted average prices.
 			proposalTxs = append(proposalTxs, bz)
 		}
 
-		var txs []sdk.Tx
-		itr := h.mempool.Select(context.Background(), nil)
-		for itr != nil {
-			tmptx := itr.Tx()
+		// proceed with normal block proposal construction, e.g. POB, normal txs, etc...
 
-			txs = append(txs, tmptx)
-			itr = itr.Next()
-		}
-		h.logger.Info(fmt.Sprintf("🛠️ :: Number of Transactions available from mempool: %v", len(txs)))
-
-		if h.runProvider {
-			tmpMsgs, err := h.txProvider.BuildProposal(ctx, txs)
-			if err != nil {
-				h.logger.Error(fmt.Sprintf("❌️ :: Error Building Custom Proposal: %v", err))
-			}
-			txs = tmpMsgs
-		}
-
-		for _, sdkTxs := range txs {
-			txBytes, err := h.txConfig.TxEncoder()(sdkTxs)
-			if err != nil {
-				h.logger.Info(fmt.Sprintf("❌~Error encoding transaction: %v", err.Error()))
-			}
-			proposalTxs = append(proposalTxs, txBytes)
-		}
-
-		h.logger.Info(fmt.Sprintf("🛠️ :: Number of Transactions in proposal: %v", len(proposalTxs)))
-
-		return &abci.ResponsePrepareProposal{Txs: proposalTxs}, nil
+		return &abci.ResponsePrepareProposal{
+			Txs: proposalTxs,
+		}, nil
 	}
 }
 
-func (h *ProcessProposalHandler) ProcessProposalHandler() sdk.ProcessProposalHandler {
-	return func(ctx sdk.Context, req *abci.RequestProcessProposal) (resp *abci.ResponseProcessProposal, err error) {
-		h.Logger.Info(fmt.Sprintf("⚙️ :: Process Proposal"))
-
-		// The first transaction will always be the Special Transaction
-		numTxs := len(req.Txs)
-		if numTxs == 1 {
-			h.Logger.Info(fmt.Sprintf("⚙️:: Number of transactions :: %v", numTxs))
+func (h *ProposalHandler) ProcessProposal() sdk.ProcessProposalHandler {
+	return func(ctx sdk.Context, req *abci.RequestProcessProposal) (*abci.ResponseProcessProposal, error) {
+		if len(req.Txs) == 0 {
+			return &abci.ResponseProcessProposal{Status: abci.ResponseProcessProposal_ACCEPT}, nil
 		}
 
-		if numTxs >= 1 {
-			h.Logger.Info(fmt.Sprintf("⚙️:: Number of transactions :: %v", numTxs))
-			var st SpecialTransaction
-			err = json.Unmarshal(req.Txs[0], &st)
-			if err != nil {
-				h.Logger.Error(fmt.Sprintf("❌️:: Error unmarshalling special Tx in Process Proposal :: %v", err))
-			}
-			if len(st.Bids) > 0 {
-				h.Logger.Info(fmt.Sprintf("⚙️:: There are bids in the Special Transaction"))
-				var bids []nstypes.MsgBid
-				for i, b := range st.Bids {
-					var bid nstypes.MsgBid
-					h.Codec.Unmarshal(b, &bid)
-					h.Logger.Info(fmt.Sprintf("⚙️:: Special Transaction Bid No %v :: %v", i, bid))
-					bids = append(bids, bid)
-				}
-				// Validate Bids in Tx
-				txs := req.Txs[1:]
-				ok, err := ValidateBids(h.TxConfig, bids, txs, h.Logger)
-				if err != nil {
-					h.Logger.Error(fmt.Sprintf("❌️:: Error validating bids in Process Proposal :: %v", err))
-					return &abci.ResponseProcessProposal{Status: abci.ResponseProcessProposal_REJECT}, nil
-				}
-				if !ok {
-					h.Logger.Error(fmt.Sprintf("❌️:: Unable to validate bids in Process Proposal :: %v", err))
-					return &abci.ResponseProcessProposal{Status: abci.ResponseProcessProposal_REJECT}, nil
-				}
-				h.Logger.Info("⚙️:: Successfully validated bids in Process Proposal")
-			}
+		var injectedVoteExtTx WeightedVotingPower
+		if err := json.Unmarshal(req.Txs[0], &injectedVoteExtTx); err != nil {
+			h.logger.Error("failed to decode injected vote extension tx", "err", err)
+			return &abci.ResponseProcessProposal{Status: abci.ResponseProcessProposal_REJECT}, nil
 		}
+
+		err := baseapp.ValidateVoteExtensions(ctx, h.valStore, req.Height, ctx.ChainID(), injectedVoteExtTx.ExtendedCommitInfo)
+		if err != nil {
+			return nil, err
+		}
+
+		// Verify the proposer's stake-weighted oracle prices by computing the same
+		// calculation and comparing the results. We omit verification for brevity
+		// and demo purposes.
+		//stakeWeightedPrices, err := h.computeStakeWeightedOraclePrices(ctx, injectedVoteExtTx.ExtendedCommitInfo)
+		if err != nil {
+			return &abci.ResponseProcessProposal{Status: abci.ResponseProcessProposal_REJECT}, nil
+		}
+		/*if err := compareOraclePrices(injectedVoteExtTx., nil); err != nil {
+			return &abci.ResponseProcessProposal{Status: abci.ResponseProcessProposal_REJECT}, nil
+		}*/
 
 		return &abci.ResponseProcessProposal{Status: abci.ResponseProcessProposal_ACCEPT}, nil
 	}
 }
 
-func processVoteExtensions(req *abci.RequestPrepareProposal, log log.Logger) (SpecialTransaction, error) {
-	log.Info(fmt.Sprintf("🛠️ :: Process Vote Extensions"))
-
-	// Create empty response
-	st := SpecialTransaction{
-		0,
-		[][]byte{},
+func (h *ProposalHandler) PreBlocker(ctx sdk.Context, req *abci.RequestFinalizeBlock) (*sdk.ResponsePreBlock, error) {
+	res := &sdk.ResponsePreBlock{}
+	if len(req.Txs) == 0 {
+		return res, nil
 	}
 
-	// Get Vote Ext for H-1 from Req
-	voteExt := req.GetLocalLastCommit()
-	votes := voteExt.Votes
-
-	// Iterate through votes
-	var ve AppVoteExtension
-	for _, vote := range votes {
-		// Unmarshal to AppExt
-		err := json.Unmarshal(vote.VoteExtension, &ve)
-		if err != nil {
-			log.Error(fmt.Sprintf("❌ :: Error unmarshalling Vote Extension"))
-		}
-
-		st.Height = int(ve.Height)
-
-		// If Bids in VE, append to Special Transaction
-		if len(ve.Bids) > 0 {
-			log.Info("🛠️ :: Bids in VE")
-			for _, b := range ve.Bids {
-				st.Bids = append(st.Bids, b)
-			}
-		}
+	var injectedVoteExtTx WeightedVotingPower
+	if err := json.Unmarshal(req.Txs[0], &injectedVoteExtTx); err != nil {
+		h.logger.Error("failed to decode injected vote extension tx", "err", err)
+		return nil, err
 	}
 
-	return st, nil
+	// set oracle prices using the passed in context, which will make these prices available in the current block
+	/*if err := h.weightskeeper.SetOraclePrices(ctx, injectedVoteExtTx.StakeWeightedPrices); err != nil {
+		return nil, err
+	}*/
+
+	return res, nil
 }
 
-func ValidateBids(txConfig client.TxConfig, veBids []nstypes.MsgBid, proposalTxs [][]byte, logger log.Logger) (bool, error) {
-	var proposalBids []*nstypes.MsgBid
-	for _, txBytes := range proposalTxs {
-		txDecoder := txConfig.TxDecoder()
-		messages, err := txDecoder(txBytes)
-		if err != nil {
-			logger.Error(fmt.Sprintf("❌️:: Unable to decode proposal transactions :: %v", err))
-
-			return false, err
-		}
-		sdkMsgs := messages.GetMsgs()
-		for _, m := range sdkMsgs {
-			switch m := m.(type) {
-			case *nstypes.MsgBid:
-				proposalBids = append(proposalBids, m)
-			}
-		}
-	}
-
-	bidFreq := make(map[string]int)
-	totalVotes := len(veBids)
-	for _, b := range veBids {
-		h, err := Hash(&b)
-		if err != nil {
-			logger.Error(fmt.Sprintf("❌️:: Unable to produce bid frequency map :: %v", err))
-
-			return false, err
-		}
-		bidFreq[h]++
-	}
-
-	thresholdCount := int(float64(totalVotes) * 0.5)
-	logger.Info(fmt.Sprintf("🛠️ :: VE Threshold: %v", thresholdCount))
-	ok := true
-	logger.Info(fmt.Sprintf("🛠️ :: Number of Proposal Bids: %v", len(proposalBids)))
-
-	for _, p := range proposalBids {
-
-		key, err := Hash(p)
-		if err != nil {
-			logger.Error(fmt.Sprintf("❌️:: Unable to hash proposal bid :: %v", err))
-
-			return false, err
-		}
-		freq := bidFreq[key]
-		logger.Info(fmt.Sprintf("🛠️ :: Frequency for Proposal Bid: %v", freq))
-		if freq < thresholdCount {
-			logger.Error(fmt.Sprintf("❌️:: Detected invalid proposal bid :: %v", p))
-
-			ok = false
-		}
-	}
-	return ok, nil
-}
-
-func Hash(m *nstypes.MsgBid) (string, error) {
-	b, err := json.Marshal(m)
-	if err != nil {
-		return "", err
-	}
-	return base64.StdEncoding.EncodeToString(b), nil
+func compareOraclePrices(p1, p2 map[string]math.LegacyDec) error {
+	return nil
 }
