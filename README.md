@@ -1,28 +1,25 @@
-# ABCI++ Workshop
+# `weight-shift`
 
-Joint workshop between [Cosmos SDK](https://docs.cosmos.network/main) and [CometBFT](https://cometbft.com/) for [Hackmos](https://cosmoverse.org/hackmos) at [Cosmoverse](https://cosmoverse.org/).
+## Abstract
 
-Supported by [Informal Systems](https://informal.systems/) and [Binary Builders](https://binary.builders/).
+Blockchain networks often leverage validators to maintain the security and integrity of the system. Typically, voting power is determined by the amount of stake a validator has or other static metrics. This documentation proposes an innovative approach to decide a validator's voting power based on their on-chain activity, ensuring that active and dedicated validators are rewarded appropriately.
 
-## Concepts
+## Contents
 **Overview**
+* [QueryData](#querydata)
+    * [Monitor On-Chain Activity - PrepareProposal()](#prepareproposal)
 
-The goal of this workshop is to demonstrate to developers how they might think about utilizing ABCI++ and new features in the Eden release of the Cosmos SDK.
 
-In part 1, we explore the application and discuss a potential vector for MEV by leveraging custom block building in `PreparePropsoal` for a chain running perpetual nameservice auctions.
 
-In part 2 and 3, we build a solution to mitigate auction front running by extending functionality in `ExtendVote`, `PrepareProposal`, and `ProcessProposal`. This solution assumes an honest 2/3 majority of validators are not colluding to front run transactions.
+## QueryData
+### Monitor On-Chain Activity - PrepareProposal()
+In the PrepareProposal step, the system will query the data related to the on-chain activity of validators. This data encompasses the number of transactions validated, proposed blocks, uptime percentage, and any other relevant metrics that contribute to the on-chain activity.
 
-At **H-1** during `ExtendVote`, we check the mempool for unconfirmed transactions and select all auction bids. Validators submit their Vote Extension with a list of all bids available in their mempool.
-Additionally we implement a custom app side `ThresholdMempool`, which guarantees that transactions can only be included in a proposal if they have been seen by `ExtendVote` at H-1.
+- Track Uptime: Monitor the operational status of each validator's node and record the uptime percentage.
+- Log Proposed Blocks: Count and log the number of blocks proposed by each validator.
+- Record Transactions Validated: Track and record the number of transactions validated by each validator.
+- Detect Slashing Events: Identify and log any instances where validators are penalized for misbehavior.
 
-At **H** during `PrepareProposal`, the validator will process all bids included in Vote Extensions from H-1. It will inject this result into a Special Transaction to be included in the proposal.
-During the subsequent `ProcessProposal`, validators will check if there are any bid transactions. Bids included in the proposal will be validated against the bids included in the Special Transaction.
-If a bid included in the proposal does not meet the minimum threshold of inclusion frequency in Vote Extensions from H-1, the proposal is rejected.
-
-![](./figures/diagram.png)
-
-## Content
 
 #### [Introduction](#intro)
 - Getting Started
