@@ -150,6 +150,7 @@ start-localnet: build
 	./build/cosmappd genesis gentx val1 1000000000uatom --chain-id cosmos-
 	./build/cosmappd genesis collect-gentxs
 	sed -i.bak'' 's/minimum-gas-prices = ""/minimum-gas-prices = "0.025uatom"/' ~/.cosmappd/config/app.toml
+	jq '.consensus.params.abci.vote_extensions_enable_height = "2"' ~/.cosmappd/config/genesis.json > output.json && mv output.json ~/.cosmappd/config/genesis.json
 	./build/cosmappd start
 
 
@@ -169,6 +170,9 @@ setup-multinet: build
 	./build/cosmappd genesis gentx val1 1000000000uatom --chain-id cosmos-
 	./build/cosmappd genesis collect-gentxs
 	sed -i.bak'' 's/minimum-gas-prices = ""/minimum-gas-prices = "0.025uatom"/' ~/.cosmappd/config/app.toml
+	jq '.consensus.params.abci.vote_extensions_enable_height = "2"' ~/.cosmappd/config/genesis.json > output.json && mv output.json ~/.cosmappd/config/genesis.json
+
+
 
 ###############################################################################
 ###                           Tests & Simulation                            ###
