@@ -12,6 +12,7 @@ Blockchain networks often leverage validators to maintain the security and integ
     * [Send Data to be computed - ExtendVote()](#extendvote)
 * [ComputeData](#computedata)
     * [Send Data to be computed - ExtendVote()](#extendvote)
+* [Potential Impact](#potentialimpact)
 
 
 
@@ -41,3 +42,8 @@ With the data in place from the ExtendVote step, the PreBlocker() function will 
   - Transactions Validated Bonus
 - Apply Slashing Penalties: Deduct penalties from the voting power of validators who have engaged in malicious or negligent actions.
 - Sync with ABCI++: Integrate the voting power computations with ABCI++ to ensure that the updated voting powers are recognized and applied in consensus rounds.
+
+## Potential Impact
+- Enhanced Network Security: Validators will be more motivated to participate actively, ensuring that the network is more secure and robust.
+- Fair Representation: Validators will have voting power that accurately represents their contributions to the network.
+- Network Growth: As validators see the direct benefits of their active participation, it can lead to more entities wanting to become validators, further decentralizing and strengthening the network.
