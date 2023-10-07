@@ -38,7 +38,6 @@ func processVoteExtensions(req *abci.RequestPrepareProposal, log log.Logger) (We
 
 	// Create empty response
 	st := WeightedVotingPowerVoteExtension{
-		0,
 		map[string]int64{},
 	}
 
@@ -51,11 +50,8 @@ func processVoteExtensions(req *abci.RequestPrepareProposal, log log.Logger) (We
 	for _, vote := range votes {
 		err := json.Unmarshal(vote.VoteExtension, &ve)
 		if err != nil {
-			log.Error(err.Error())
 			log.Error(fmt.Sprintf("❌ :: Error unmarshalling Vote Extension"))
 		}
-
-		st.Height = int64(int(ve.Height))
 
 		// If Bids in VE, append to Special Transaction
 		if len(ve.Weights) > 0 {
@@ -104,7 +100,7 @@ func (h *ProposalHandler) PrepareProposal() sdk.PrepareProposalHandler {
 			}
 
 			if err != nil {
-				return nil, errors.New("failed to compute stake-weighted oracle prices")
+				return nil, errors.New("failed to compute weights")
 			}
 
 			injectedVoteExtTx := WeightedVotingPower{
@@ -113,7 +109,7 @@ func (h *ProposalHandler) PrepareProposal() sdk.PrepareProposalHandler {
 			}
 
 			bz, err := json.Marshal(injectedVoteExtTx)
-			h.logger.Info(fmt.Sprint(bz))
+			//h.logger.Info(fmt.Sprint(bz))
 
 			if err != nil {
 				h.logger.Error("failed to encode injected vote extension tx", "err", err)
@@ -143,7 +139,7 @@ func (h *ProposalHandler) ProcessProposal() sdk.ProcessProposalHandler {
 			h.logger.Error("failed to decode injected vote extension tx", "err", err)
 			return &abci.ResponseProcessProposal{Status: abci.ResponseProcessProposal_REJECT}, nil
 		}
-		h.logger.Info(fmt.Sprint(injectedVoteExtTx))
+		//h.logger.Info(fmt.Sprint(injectedVoteExtTx))
 
 		return &abci.ResponseProcessProposal{Status: abci.ResponseProcessProposal_ACCEPT}, nil
 	}
@@ -164,7 +160,7 @@ func (h *ProposalHandler) processWeightedVotingPowerVoteExtensions(ctx sdk.Conte
 		h.logger.Info(fmt.Sprint(v.VoteExtension))
 
 		if len(v.VoteExtension) <= 0 {
-			h.logger.Error("no vote extensions")
+			//h.logger.Error("no vote extensions")
 			return nil, nil
 		}
 
@@ -191,7 +187,7 @@ func (h *ProposalHandler) PreBlocker(ctx sdk.Context, req *abci.RequestFinalizeB
 		return nil, err
 	}
 
-	// set oracle prices using the passed in context, which will make these prices available in the current block
+	// set weights using the passed in context, which will make these prices available in the current block
 	if err := h.keeper.SetWeights(ctx, injectedVoteExtTx.Weights); err != nil {
 		return nil, err
 	}

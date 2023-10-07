@@ -31,7 +31,6 @@ func NewVoteExtensionHandler(
 
 // WeightedVotingPowerVoteExtension defines the canonical vote extension structure.
 type WeightedVotingPowerVoteExtension struct {
-	Height  int64
 	Weights map[string]int64
 }
 
@@ -40,20 +39,39 @@ func (h *VoteExtHandler) ExtendVoteHandler() sdk.ExtendVoteHandler {
 		h.logger.Info(fmt.Sprintf("!! :: Extending Vote"))
 		h.currentBlock = req.Height
 
-		h.logger.Info("computing weighted voting power")
-
-		//TODO: Add external sources here
-
-		// TODO: if the new compute height is reached compute, otherwise use the already existing weights
 		computedWeights, err := h.Keeper.GetWeights(ctx)
-		if err != nil || len(computedWeights) <= 0 {
-			computedWeights["val1"] = 0
-			computedWeights["val2"] = 1
+		var maxPercentage int64 = 100 // this could be set by a governance proposal
+
+		provider := Provider{}
+		uptimePercentages := provider.GetValidatorsUptime()
+		governancePercentages := provider.GetValidatorsUptime()
+		for validatorAddress, _ := range uptimePercentages {
+			computedWeights[validatorAddress] = governancePercentages[validatorAddress] + uptimePercentages[validatorAddress]
+			// eventually add other params like GitHub activity
+		}
+
+		// Calculate the maximum and minimum values in the current computedWeights map
+		var maxWeight, minWeight int64
+		for _, value := range computedWeights {
+			if value > maxWeight {
+				maxWeight = value
+			}
+			if value < minWeight {
+				minWeight = value
+			}
+		}
+
+		// Calculate the scaling factor to map values to the custom range
+		scalingFactor := maxPercentage / (maxWeight - minWeight)
+
+		// Scale the computedWeights values to the custom range
+		for validatorAddress, _ := range uptimePercentages {
+			computedWeights[validatorAddress] = (computedWeights[validatorAddress] - minWeight) * scalingFactor
+			// Now, the values in computedWeights are scaled to the range [0, maxPercentage]
 		}
 
 		// produce a canonical vote extension
 		voteExt := WeightedVotingPowerVoteExtension{
-			Height:  7,
 			Weights: computedWeights,
 		}
 
@@ -76,18 +94,12 @@ func (h *VoteExtHandler) VerifyVoteExtensionHandler() sdk.VerifyVoteExtensionHan
 
 		err := json.Unmarshal(req.VoteExtension, &voteExt)
 		if err != nil {
-			// NOTE: It is safe to return an error as the Cosmos SDK will capture all
-			// errors, log them, and reject the proposal.
 			return nil, fmt.Errorf("failed to unmarshal vote extension: %w", err)
-		}
-
-		if voteExt.Height != req.Height {
-			return nil, fmt.Errorf("vote extension height does not match request height; expected: %d, got: %d", req.Height, voteExt.Height)
 		}
 
 		// verify if they are valid
 		if err := h.verifyWeights(ctx, voteExt.Weights); err != nil {
-			return nil, fmt.Errorf("failed to verify oracle prices from validator %X: %w", req.ValidatorAddress, err)
+			return nil, fmt.Errorf("failed to verify weights from validator %X: %w", req.ValidatorAddress, err)
 		}
 
 		return &abci.ResponseVerifyVoteExtension{Status: abci.ResponseVerifyVoteExtension_ACCEPT}, nil
