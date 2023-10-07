@@ -3,6 +3,7 @@ package abci
 import (
 	"cosmossdk.io/log"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"github.com/ciprianmuja/weight-shift/weightskeeper"
 	abci "github.com/cometbft/cometbft/abci/types"
@@ -21,13 +22,11 @@ type VoteExtHandler struct {
 
 func NewVoteExtensionHandler(
 	logger log.Logger,
-	//providers map[string]Provider,
 	keeper weightskeeper.WeightsKeeper,
 	govKeeper govkeeper.Keeper,
 ) *VoteExtHandler {
 	return &VoteExtHandler{
-		logger: logger,
-		//providers:       providers,
+		logger:    logger,
 		Keeper:    keeper,
 		GovKeeper: govKeeper,
 	}
@@ -44,12 +43,18 @@ func (h *VoteExtHandler) ExtendVoteHandler() sdk.ExtendVoteHandler {
 		h.currentBlock = req.Height
 
 		computedWeights, err := h.Keeper.GetWeights(ctx)
-		var maxPercentage int64 = 100 // this could be set by a governance proposal
+		if err != nil || computedWeights == nil {
+			computedWeights = make(map[string]int64)
+		}
+		var maxPercentage int64 = 55 // this could be set by a governance proposal
 
 		provider := Provider{}
 		uptimePercentages := provider.GetValidatorsUptime(ctx, h.GovKeeper)
 		governancePercentages := provider.GetValidatorsUptime(ctx, h.GovKeeper)
 		githubContributions := provider.GetValidatorsGitHubContributions(ctx)
+		if uptimePercentages == nil || governancePercentages == nil || githubContributions == nil {
+			return nil, errors.New("invalid weights")
+		}
 		for validatorAddress, _ := range uptimePercentages {
 			computedWeights[validatorAddress] = governancePercentages[validatorAddress] + uptimePercentages[validatorAddress] +
 				githubContributions[validatorAddress]
