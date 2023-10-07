@@ -11,6 +11,7 @@ import (
 	abci2 "github.com/ciprianmuja/weight-shift/abci"
 	"github.com/ciprianmuja/weight-shift/provider"
 	"github.com/ciprianmuja/weight-shift/weightskeeper"
+	cmtproto "github.com/cometbft/cometbft/proto/tendermint/types"
 	"github.com/cosmos/cosmos-sdk/client/flags"
 	"github.com/spf13/cast"
 	"io"
@@ -248,6 +249,7 @@ func NewApp(
 	// set the PrepareProposal handler
 	voteExtHandler := abci2.NewVoteExtensionHandler(logger, app.WeightsKeeper)
 	bApp.SetExtendVoteHandler(voteExtHandler.ExtendVoteHandler())
+	bApp.SetVerifyVoteExtensionHandler(voteExtHandler.VerifyVoteExtensionHandler())
 	prepareProposalHandler := abci2.NewPrepareProposalHandler(logger, app.WeightsKeeper, nil)
 	bApp.SetPrepareProposal(prepareProposalHandler.PrepareProposal())
 	// set the ProcessProposal handler
@@ -480,11 +482,11 @@ func (app *App) InitChainer(ctx sdk.Context, req *abci.RequestInitChain) (*abci.
 	var genesisState GenesisState
 
 	// Enable VE
-	//req.ConsensusParams = &cmtproto.ConsensusParams{
-	//	Abci: &cmtproto.ABCIParams{
-	//		VoteExtensionsEnableHeight: 2,
-	//	},
-	//}
+	req.ConsensusParams = &cmtproto.ConsensusParams{
+		Abci: &cmtproto.ABCIParams{
+			VoteExtensionsEnableHeight: 2,
+		},
+	}
 
 	if err := json.Unmarshal(req.AppStateBytes, &genesisState); err != nil {
 		panic(err)
