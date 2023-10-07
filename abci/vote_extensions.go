@@ -39,7 +39,7 @@ type WeightedVotingPowerVoteExtension struct {
 
 func (h *VoteExtHandler) ExtendVoteHandler() sdk.ExtendVoteHandler {
 	return func(ctx sdk.Context, req *abci.RequestExtendVote) (*abci.ResponseExtendVote, error) {
-		h.logger.Info(fmt.Sprintf("!! :: Extending Vote"))
+		h.logger.Info(fmt.Sprintf("🗳️ :: Extending Vote"))
 		h.currentBlock = req.Height
 
 		computedWeights, err := h.Keeper.GetWeights(ctx)

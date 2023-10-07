@@ -250,7 +250,7 @@ func NewApp(
 	voteExtHandler := abci2.NewVoteExtensionHandler(logger, app.WeightsKeeper, app.GovKeeper)
 	bApp.SetExtendVoteHandler(voteExtHandler.ExtendVoteHandler())
 	bApp.SetVerifyVoteExtensionHandler(voteExtHandler.VerifyVoteExtensionHandler())
-	prepareProposalHandler := abci2.NewPrepareProposalHandler(logger, app.WeightsKeeper, nil)
+	prepareProposalHandler := abci2.NewPrepareProposalHandler(logger, app.WeightsKeeper, nil, nil)
 	bApp.SetPrepareProposal(prepareProposalHandler.PrepareProposal())
 	// set the ProcessProposal handler
 	bApp.SetProcessProposal(prepareProposalHandler.ProcessProposal())
@@ -292,7 +292,6 @@ func NewApp(
 		authcodec.NewBech32Codec(sdk.Bech32PrefixValAddr),
 		authcodec.NewBech32Codec(sdk.Bech32PrefixConsAddr),
 	)
-
 	app.DistrKeeper = distrkeeper.NewKeeper(
 		appCodec,
 		runtime.NewKVStoreService(keys[distrtypes.StoreKey]),

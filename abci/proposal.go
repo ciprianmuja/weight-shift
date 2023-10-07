@@ -2,6 +2,7 @@ package abci
 
 import (
 	"cosmossdk.io/log"
+	"cosmossdk.io/math"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -10,6 +11,7 @@ import (
 	cmtproto "github.com/cometbft/cometbft/proto/tendermint/types"
 	"github.com/cosmos/cosmos-sdk/baseapp"
 	sdk "github.com/cosmos/cosmos-sdk/types"
+	stakingkeeper "github.com/cosmos/cosmos-sdk/x/staking/keeper"
 )
 
 // WeightedVotingPower defines the structure a proposer should use to calculate
@@ -20,16 +22,19 @@ type WeightedVotingPower struct {
 }
 
 type ProposalHandler struct {
-	logger   log.Logger
-	keeper   weightskeeper.WeightsKeeper
-	valStore baseapp.ValidatorStore
+	logger        log.Logger
+	keeper        weightskeeper.WeightsKeeper
+	stakingKeeper *stakingkeeper.Keeper
+	valStore      baseapp.ValidatorStore
 }
 
-func NewPrepareProposalHandler(logger log.Logger, keeper weightskeeper.WeightsKeeper, valStore baseapp.ValidatorStore) *ProposalHandler {
+func NewPrepareProposalHandler(logger log.Logger, keeper weightskeeper.WeightsKeeper, valStore baseapp.ValidatorStore,
+	stakingKeeper *stakingkeeper.Keeper) *ProposalHandler {
 	return &ProposalHandler{
-		logger:   logger,
-		keeper:   keeper,
-		valStore: valStore,
+		logger:        logger,
+		keeper:        keeper,
+		valStore:      valStore,
+		stakingKeeper: stakingKeeper,
 	}
 }
 
@@ -190,6 +195,14 @@ func (h *ProposalHandler) PreBlocker(ctx sdk.Context, req *abci.RequestFinalizeB
 	// set weights using the passed in context, which will make these weighted voting power available in the current block
 	if err := h.keeper.SetWeights(ctx, injectedVoteExtTx.Weights); err != nil {
 		return nil, err
+	}
+
+	// handle the weights logic to increase and decrease the voting power of the validators
+	for valAddress, weight := range injectedVoteExtTx.Weights {
+		h.logger.Info(fmt.Sprintf("%s: %d", valAddress, weight))
+		if h.stakingKeeper != nil {
+			h.stakingKeeper.SetLastTotalPower(ctx, math.NewInt(weight))
+		}
 	}
 
 	return res, nil
