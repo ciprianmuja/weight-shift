@@ -17,15 +17,11 @@ require (
 	github.com/cosmos/cosmos-db v1.0.0
 	github.com/cosmos/cosmos-sdk v0.50.0-rc.1
 	github.com/cosmos/gogoproto v1.4.11
-	github.com/cosmosregistry/example v0.0.0-20231005143642-9c39af0bb832
 	github.com/facundomedica/oracle v0.0.0-20231006094656-35c6bf507590
 	github.com/fatal-fruit/ns v0.0.0-20230904112332-434c50dc9738
 	github.com/spf13/cast v1.5.1
 	github.com/spf13/cobra v1.7.0
 	github.com/spf13/viper v1.16.0
-	github.com/stretchr/testify v1.8.4
-	golang.org/x/sync v0.3.0
-	google.golang.org/protobuf v1.31.0
 )
 
 require (
@@ -156,6 +152,7 @@ require (
 	github.com/spf13/afero v1.9.5 // indirect
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
+	github.com/stretchr/testify v1.8.4 // indirect
 	github.com/subosito/gotenv v1.4.2 // indirect
 	github.com/syndtr/goleveldb v1.0.1-0.20220721030215-126854af5e6d // indirect
 	github.com/tendermint/go-amino v0.16.0 // indirect
@@ -169,6 +166,7 @@ require (
 	golang.org/x/exp v0.0.0-20230817173708-d852ddb80c63 // indirect
 	golang.org/x/net v0.15.0 // indirect
 	golang.org/x/oauth2 v0.10.0 // indirect
+	golang.org/x/sync v0.3.0 // indirect
 	golang.org/x/sys v0.12.0 // indirect
 	golang.org/x/term v0.12.0 // indirect
 	golang.org/x/text v0.13.0 // indirect
@@ -179,6 +177,7 @@ require (
 	google.golang.org/genproto/googleapis/api v0.0.0-20230726155614-23370e0ffb3e // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20230913181813-007df8e322eb // indirect
 	google.golang.org/grpc v1.58.2 // indirect
+	google.golang.org/protobuf v1.31.0 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
