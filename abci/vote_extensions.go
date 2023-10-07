@@ -17,7 +17,7 @@ type VoteExtHandler struct {
 	Keeper weightskeeper.WeightsKeeper
 }
 
-func NewVoteExtHandler(
+func NewVoteExtensionHandler(
 	logger log.Logger,
 	//providers map[string]Provider,
 	keeper weightskeeper.WeightsKeeper,
@@ -37,10 +37,10 @@ type WeightedVotingPowerVoteExtension struct {
 
 func (h *VoteExtHandler) ExtendVoteHandler() sdk.ExtendVoteHandler {
 	return func(ctx sdk.Context, req *abci.RequestExtendVote) (*abci.ResponseExtendVote, error) {
-		h.logger.Info(fmt.Sprintf("🗳️ :: Extending Vote"))
+		h.logger.Info(fmt.Sprintf("!! :: Extending Vote"))
 		h.currentBlock = req.Height
 
-		h.logger.Info("computing weighted voting power", "height", req.Height)
+		h.logger.Info("computing weighted voting power")
 
 		//TODO: Add external sources here
 
@@ -53,7 +53,7 @@ func (h *VoteExtHandler) ExtendVoteHandler() sdk.ExtendVoteHandler {
 
 		// produce a canonical vote extension
 		voteExt := WeightedVotingPowerVoteExtension{
-			Height:  req.Height,
+			Height:  7,
 			Weights: computedWeights,
 		}
 
@@ -65,17 +65,13 @@ func (h *VoteExtHandler) ExtendVoteHandler() sdk.ExtendVoteHandler {
 			return nil, fmt.Errorf("failed to marshal vote extension: %w", err)
 		}
 
-		h.logger.Info("ciao")
-		h.logger.Info(fmt.Sprint(voteExt))
-		h.logger.Info(string(bz))
-
 		return &abci.ResponseExtendVote{VoteExtension: bz}, nil
 	}
 }
 
 func (h *VoteExtHandler) VerifyVoteExtensionHandler() sdk.VerifyVoteExtensionHandler {
 	return func(ctx sdk.Context, req *abci.RequestVerifyVoteExtension) (*abci.ResponseVerifyVoteExtension, error) {
-		h.logger.Info(fmt.Sprintf("🗳️ :: Verifying Extended Votes"))
+		h.logger.Info(fmt.Sprintf(" :: Verifying Extended Votes"))
 		var voteExt WeightedVotingPowerVoteExtension
 
 		err := json.Unmarshal(req.VoteExtension, &voteExt)

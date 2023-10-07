@@ -246,15 +246,12 @@ func NewApp(
 	)
 
 	// set the PrepareProposal handler
+	voteExtHandler := abci2.NewVoteExtensionHandler(logger, app.WeightsKeeper)
+	bApp.SetExtendVoteHandler(voteExtHandler.ExtendVoteHandler())
 	prepareProposalHandler := abci2.NewPrepareProposalHandler(logger, app.WeightsKeeper, nil)
 	bApp.SetPrepareProposal(prepareProposalHandler.PrepareProposal())
 	// set the ProcessProposal handler
 	bApp.SetProcessProposal(prepareProposalHandler.ProcessProposal())
-
-	// set the VoteExtender handler
-	voteExtHandler := abci2.NewVoteExtHandler(logger, app.WeightsKeeper)
-	bApp.SetExtendVoteHandler(voteExtHandler.ExtendVoteHandler())
-	bApp.SetVerifyVoteExtensionHandler(voteExtHandler.VerifyVoteExtensionHandler())
 
 	app.ParamsKeeper = initParamsKeeper(appCodec, legacyAmino, keys[paramstypes.StoreKey], tkeys[paramstypes.TStoreKey])
 
