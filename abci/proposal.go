@@ -15,8 +15,8 @@ import (
 // WeightedVotingPower defines the structure a proposer should use to calculate
 // and submit the weighted voting power for the given validator set
 type WeightedVotingPower struct {
-	StakeWeightedPrices map[string]int64
-	ExtendedCommitInfo  abci.ExtendedCommitInfo
+	StakeWeightedWeighted map[string]int64
+	ExtendedCommitInfo    abci.ExtendedCommitInfo
 }
 
 type ProposalHandler struct {
@@ -104,8 +104,8 @@ func (h *ProposalHandler) PrepareProposal() sdk.PrepareProposalHandler {
 			}
 
 			injectedVoteExtTx := WeightedVotingPower{
-				StakeWeightedPrices: weightedsVotingPower,
-				ExtendedCommitInfo:  req.LocalLastCommit,
+				StakeWeightedWeighted: weightedsVotingPower,
+				ExtendedCommitInfo:    req.LocalLastCommit,
 			}
 
 			bz, err := json.Marshal(injectedVoteExtTx)
@@ -187,7 +187,7 @@ func (h *ProposalHandler) PreBlocker(ctx sdk.Context, req *abci.RequestFinalizeB
 		return nil, err
 	}
 
-	// set weights using the passed in context, which will make these prices available in the current block
+	// set weights using the passed in context, which will make these weighted voting power available in the current block
 	if err := h.keeper.SetWeights(ctx, injectedVoteExtTx.Weights); err != nil {
 		return nil, err
 	}

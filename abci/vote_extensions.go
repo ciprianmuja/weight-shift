@@ -7,6 +7,7 @@ import (
 	"github.com/ciprianmuja/weight-shift/weightskeeper"
 	abci "github.com/cometbft/cometbft/abci/types"
 	sdk "github.com/cosmos/cosmos-sdk/types"
+	govkeeper "github.com/cosmos/cosmos-sdk/x/gov/keeper"
 )
 
 type VoteExtHandler struct {
@@ -14,18 +15,21 @@ type VoteExtHandler struct {
 	currentBlock int64               // current block height
 	provider     map[string]Provider // provider from which get the external weight data
 
-	Keeper weightskeeper.WeightsKeeper
+	Keeper    weightskeeper.WeightsKeeper
+	GovKeeper govkeeper.Keeper
 }
 
 func NewVoteExtensionHandler(
 	logger log.Logger,
 	//providers map[string]Provider,
 	keeper weightskeeper.WeightsKeeper,
+	govKeeper govkeeper.Keeper,
 ) *VoteExtHandler {
 	return &VoteExtHandler{
 		logger: logger,
 		//providers:       providers,
-		Keeper: keeper,
+		Keeper:    keeper,
+		GovKeeper: govKeeper,
 	}
 }
 
@@ -43,15 +47,18 @@ func (h *VoteExtHandler) ExtendVoteHandler() sdk.ExtendVoteHandler {
 		var maxPercentage int64 = 100 // this could be set by a governance proposal
 
 		provider := Provider{}
-		uptimePercentages := provider.GetValidatorsUptime()
-		governancePercentages := provider.GetValidatorsUptime()
+		uptimePercentages := provider.GetValidatorsUptime(ctx, h.GovKeeper)
+		governancePercentages := provider.GetValidatorsUptime(ctx, h.GovKeeper)
+		githubContributions := provider.GetValidatorsGitHubContributions(ctx)
 		for validatorAddress, _ := range uptimePercentages {
-			computedWeights[validatorAddress] = governancePercentages[validatorAddress] + uptimePercentages[validatorAddress]
-			// eventually add other params like GitHub activity
+			computedWeights[validatorAddress] = governancePercentages[validatorAddress] + uptimePercentages[validatorAddress] +
+				githubContributions[validatorAddress]
+			// eventually add other params like from more sources
 		}
 
 		// Calculate the maximum and minimum values in the current computedWeights map
-		var maxWeight, minWeight int64
+		var maxWeight int64 = 0
+		var minWeight int64 = 0
 		for _, value := range computedWeights {
 			if value > maxWeight {
 				maxWeight = value
@@ -62,7 +69,10 @@ func (h *VoteExtHandler) ExtendVoteHandler() sdk.ExtendVoteHandler {
 		}
 
 		// Calculate the scaling factor to map values to the custom range
-		scalingFactor := maxPercentage / (maxWeight - minWeight)
+		var scalingFactor int64 = 1 // fallback value, no changes
+		if maxWeight-minWeight > 0 {
+			scalingFactor = maxPercentage / (maxWeight - minWeight)
+		}
 
 		// Scale the computedWeights values to the custom range
 		for validatorAddress, _ := range uptimePercentages {
@@ -74,8 +84,6 @@ func (h *VoteExtHandler) ExtendVoteHandler() sdk.ExtendVoteHandler {
 		voteExt := WeightedVotingPowerVoteExtension{
 			Weights: computedWeights,
 		}
-
-		h.logger.Info("computed weights", "weights", computedWeights)
 
 		bz, err := json.Marshal(voteExt)
 		if err != nil {
@@ -106,6 +114,6 @@ func (h *VoteExtHandler) VerifyVoteExtensionHandler() sdk.VerifyVoteExtensionHan
 	}
 }
 
-func (h *VoteExtHandler) verifyWeights(ctx sdk.Context, prices map[string]int64) error {
+func (h *VoteExtHandler) verifyWeights(ctx sdk.Context, weights map[string]int64) error {
 	return nil
 }

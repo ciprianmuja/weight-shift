@@ -247,7 +247,7 @@ func NewApp(
 	)
 
 	// set the PrepareProposal handler
-	voteExtHandler := abci2.NewVoteExtensionHandler(logger, app.WeightsKeeper)
+	voteExtHandler := abci2.NewVoteExtensionHandler(logger, app.WeightsKeeper, app.GovKeeper)
 	bApp.SetExtendVoteHandler(voteExtHandler.ExtendVoteHandler())
 	bApp.SetVerifyVoteExtensionHandler(voteExtHandler.VerifyVoteExtensionHandler())
 	prepareProposalHandler := abci2.NewPrepareProposalHandler(logger, app.WeightsKeeper, nil)
