@@ -1,7 +1,7 @@
 package cmd
 
 import (
-	"github.com/fatal-fruit/cosmapp/testutils"
+	"github.com/ciprianmuja/weight-shift/testutils"
 	"os"
 
 	"cosmossdk.io/log"
@@ -12,7 +12,7 @@ import (
 	"github.com/cosmos/cosmos-sdk/x/auth/tx"
 	txmodule "github.com/cosmos/cosmos-sdk/x/auth/tx/config"
 
-	"github.com/fatal-fruit/cosmapp/app"
+	"github.com/ciprianmuja/weight-shift/app"
 
 	"github.com/cosmos/cosmos-sdk/client"
 	"github.com/cosmos/cosmos-sdk/client/config"
@@ -29,7 +29,7 @@ func NewRootCmd() (*cobra.Command, testutils.EncodingConfig) {
 		nil,
 		true,
 		map[int64]bool{},
-		"val",
+		"val1",
 		simtestutil.NewAppOptionsWithFlagHome(tempDir()),
 	)
 

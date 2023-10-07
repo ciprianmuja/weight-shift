@@ -7,10 +7,12 @@ import (
 	upgradetypes "cosmossdk.io/x/upgrade/types"
 	"encoding/json"
 	"fmt"
+	weight_shift "github.com/ciprianmuja/weight-shift"
+	abci2 "github.com/ciprianmuja/weight-shift/abci"
+	"github.com/ciprianmuja/weight-shift/provider"
+	"github.com/ciprianmuja/weight-shift/weightskeeper"
+	cmtproto "github.com/cometbft/cometbft/proto/tendermint/types"
 	"github.com/cosmos/cosmos-sdk/client/flags"
-	abci2 "github.com/fatal-fruit/cosmapp/abci"
-	mempool2 "github.com/fatal-fruit/cosmapp/mempool"
-	"github.com/fatal-fruit/cosmapp/provider"
 	"github.com/spf13/cast"
 	"io"
 	"os"
@@ -76,7 +78,6 @@ import (
 	govtypes "github.com/cosmos/cosmos-sdk/x/gov/types"
 	paramskeeper "github.com/cosmos/cosmos-sdk/x/params/keeper"
 	stakingkeeper "github.com/cosmos/cosmos-sdk/x/staking/keeper"
-	apptypes "github.com/fatal-fruit/cosmapp/types"
 	nskeeper "github.com/fatal-fruit/ns/keeper"
 	nameservice "github.com/fatal-fruit/ns/module"
 	nstypes "github.com/fatal-fruit/ns/types"
@@ -121,6 +122,7 @@ type App struct {
 	ParamsKeeper          paramskeeper.Keeper
 	ConsensusParamsKeeper consensusparamkeeper.Keeper
 	NameserviceKeeper     nskeeper.Keeper
+	WeightsKeeper         weightskeeper.WeightsKeeper
 
 	mm           *module.Manager
 	BasicManager module.BasicManager
@@ -151,7 +153,7 @@ func NewApp(
 ) *App {
 	homePath := cast.ToString(appOpts.Get(flags.FlagHome))
 	// Set demo flag
-	runProvider := cast.ToBool(appOpts.Get(apptypes.FlagRunProvider))
+	//runProvider := cast.ToBool(appOpts.Get(apptypes.FlagRunProvider))
 
 	interfaceRegistry, _ := types.NewInterfaceRegistryWithOptions(types.InterfaceRegistryOptions{
 		ProtoFiles: proto.HybridResolver,
@@ -171,17 +173,6 @@ func NewApp(
 	std.RegisterLegacyAminoCodec(legacyAmino)
 	std.RegisterInterfaces(interfaceRegistry)
 
-	/*
-		*************************
-		Configure Appside mempool
-		*************************
-	*/
-
-	mempool := mempool2.NewThresholdMempool(logger)
-	baseAppOptions = append(baseAppOptions, func(app *baseapp.BaseApp) {
-		app.SetMempool(mempool)
-	})
-
 	bApp := baseapp.NewBaseApp(AppName, logger, db, txConfig.TxDecoder(), baseAppOptions...)
 	bApp.SetCommitMultiStoreTracer(traceStore)
 	bApp.SetVersion(version.Version)
@@ -197,6 +188,7 @@ func NewApp(
 		upgradetypes.StoreKey,
 		consensusparamtypes.StoreKey,
 		nstypes.StoreKey,
+		weight_shift.StoreKey,
 	)
 
 	// register streaming services
@@ -247,12 +239,21 @@ func NewApp(
 	if err := bp.Init(); err != nil {
 		panic(err)
 	}
-	voteExtHandler := abci2.NewVoteExtensionHandler(logger, mempool, appCodec)
-	prepareProposalHandler := abci2.NewPrepareProposalHandler(logger, app.txConfig, appCodec, mempool, bp, runProvider)
-	processPropHandler := abci2.ProcessProposalHandler{app.txConfig, appCodec, logger}
-	bApp.SetPrepareProposal(prepareProposalHandler.PrepareProposalHandler())
-	bApp.SetProcessProposal(processPropHandler.ProcessProposalHandler())
+
+	app.WeightsKeeper = weightskeeper.NewWeightsKeeper(
+		appCodec,
+		authcodec.NewBech32Codec(sdk.Bech32MainPrefix),
+		runtime.NewKVStoreService(keys[weight_shift.StoreKey]),
+	)
+
+	// set the PrepareProposal handler
+	voteExtHandler := abci2.NewVoteExtensionHandler(logger, app.WeightsKeeper, app.GovKeeper)
 	bApp.SetExtendVoteHandler(voteExtHandler.ExtendVoteHandler())
+	bApp.SetVerifyVoteExtensionHandler(voteExtHandler.VerifyVoteExtensionHandler())
+	prepareProposalHandler := abci2.NewPrepareProposalHandler(logger, app.WeightsKeeper, nil)
+	bApp.SetPrepareProposal(prepareProposalHandler.PrepareProposal())
+	// set the ProcessProposal handler
+	bApp.SetProcessProposal(prepareProposalHandler.ProcessProposal())
 
 	app.ParamsKeeper = initParamsKeeper(appCodec, legacyAmino, keys[paramstypes.StoreKey], tkeys[paramstypes.TStoreKey])
 
@@ -481,11 +482,11 @@ func (app *App) InitChainer(ctx sdk.Context, req *abci.RequestInitChain) (*abci.
 	var genesisState GenesisState
 
 	// Enable VE
-	//req.ConsensusParams = &cmtproto.ConsensusParams{
-	//	Abci: &cmtproto.ABCIParams{
-	//		VoteExtensionsEnableHeight: 2,
-	//	},
-	//}
+	req.ConsensusParams = &cmtproto.ConsensusParams{
+		Abci: &cmtproto.ABCIParams{
+			VoteExtensionsEnableHeight: 2,
+		},
+	}
 
 	if err := json.Unmarshal(req.AppStateBytes, &genesisState); err != nil {
 		panic(err)
@@ -631,7 +632,7 @@ func (ao EmptyAppOptions) Get(_ string) interface{} {
 	return nil
 }
 
-// initParamsKeeper init params keeper and its subspaces
+// initParamsKeeper init params weightskeeper and its subspaces
 func initParamsKeeper(appCodec codec.BinaryCodec, legacyAmino *codec.LegacyAmino, key, tkey storetypes.StoreKey) paramskeeper.Keeper {
 	paramsKeeper := paramskeeper.NewKeeper(appCodec, legacyAmino, key, tkey)
 

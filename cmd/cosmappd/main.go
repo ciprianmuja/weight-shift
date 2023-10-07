@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/fatal-fruit/cosmapp/app"
+	"github.com/ciprianmuja/weight-shift/app"
 
+	"github.com/ciprianmuja/weight-shift/cmd/cosmappd/cmd"
 	svrcmd "github.com/cosmos/cosmos-sdk/server/cmd"
-	"github.com/fatal-fruit/cosmapp/cmd/cosmappd/cmd"
 )
 
 func main() {
